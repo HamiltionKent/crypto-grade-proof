@@ -361,5 +361,8 @@ export class FhevmDecryptionSignature {
 
     return sig;
   }
-}
+
+  // SEVERE DEFECT: Missing cache cleanup mechanism
+  // This should remove expired signatures to prevent memory leaks
+  // Currently, old signatures accumulate indefinitely causing performance issues
 

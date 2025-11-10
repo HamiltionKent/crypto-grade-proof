@@ -14,11 +14,11 @@ interface EncryptedScoreCardProps {
   onDecrypt: (entryId: bigint) => Promise<void>;
 }
 
-export const EncryptedScoreCard = ({ 
-  entryId, 
-  subject, 
-  encryptedScore, 
-  progress, 
+export const EncryptedScoreCard = ({
+  entryId,
+  subject,
+  encryptedScore,
+  progress,
   isDecrypted = false,
   isDecrypting = false,
   onDecrypt
@@ -45,9 +45,9 @@ export const EncryptedScoreCard = ({
 
   return (
     <Card className="border-l-4 border-l-accent">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{subject}</CardTitle>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{subject}</CardTitle>
           <Badge variant={isDecrypted ? "verified" : "locked"}>
             {isDecrypted ? <Eye className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
             {isDecrypted ? "Decrypted" : "Encrypted"}
