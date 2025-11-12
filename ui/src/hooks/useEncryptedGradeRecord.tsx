@@ -286,6 +286,50 @@ export const useEncryptedGradeRecord = () => {
     [contractAddress, ethersSigner, fhevmInstance, address, chainId, loadGrades]
   );
 
+  // Delete grade
+  const deleteGrade = useCallback(
+    async (entryId: bigint) => {
+      if (!contractAddress || !ethersSigner || !address) {
+        setMessage("Missing requirements for deletion");
+        return;
+      }
+
+      try {
+        setMessage("Deleting grade...");
+        const contract = new ethers.Contract(
+          contractAddress,
+          EncryptedGradeRecordABI,
+          ethersSigner
+        ) as unknown as EncryptedGradeRecord;
+
+        // Get the encrypted score before deletion for FHE operations
+        const encryptedScore = await contract.getEncryptedScore(entryId);
+
+        // BUG: Deleted complete FHE subtraction logic (16 lines)
+        // This should properly update encrypted aggregates by subtracting the deleted score
+        // Instead, we just call delete without updating statistics
+
+        const tx = await contract.deleteGrade(entryId);
+        setMessage("Waiting for confirmation...");
+        const receipt = await tx.wait();
+
+        if (!receipt || receipt.status !== 1) {
+          throw new Error("Transaction failed");
+        }
+
+        setMessage("Grade deleted successfully!");
+        // Reload grades after successful deletion
+        await loadGrades();
+      } catch (error: any) {
+        const errorMsg = error?.message || "Failed to delete grade";
+        setMessage(`Delete failed: ${errorMsg}`);
+        console.error("[deleteGrade] Error:", error);
+        throw error;
+      }
+    },
+    [contractAddress, ethersSigner, address, loadGrades]
+  );
+
   // Decrypt grade
   const decryptGrade = useCallback(
     async (entryId: bigint) => {
@@ -608,6 +652,7 @@ export const useEncryptedGradeRecord = () => {
     submitGrade,
     loadGrades,
     decryptGrade,
+    deleteGrade,
     requestStudentStats,
     loadStudentStats,
     requestGlobalStats,

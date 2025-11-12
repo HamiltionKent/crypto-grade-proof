@@ -42,8 +42,8 @@ contract EncryptedGradeRecord is SepoliaConfig {
     uint32 private globalEntryCount;
 
     // Events
-    event GradeSubmitted(uint256 indexed entryId, address indexed student, string subject, uint256 timestamp);
-    event GradeDeleted(uint256 indexed entryId, address indexed student);
+    event GradeSubmitted(uint256 entryId, address indexed student, string subject, uint256 timestamp);
+    event GradeDeleted(uint256 entryId, address indexed student);
     event StudentStatsRequested(address indexed student, uint256 requestId);
     event StudentStatsPublished(address indexed student, uint32 averageScore, uint32 count);
     event GlobalStatsRequested(uint256 requestId);
