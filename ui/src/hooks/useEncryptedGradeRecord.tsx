@@ -381,6 +381,18 @@ export const useEncryptedGradeRecord = () => {
 
         console.log("[decryptGrade] Handle formatted:", handle);
 
+        // Validate handle format - FIX: Restored critical FHE security validation
+        // SEVERE DEFECT 1 FIX: This validation was removed, causing decryption to succeed
+        // with invalid handles and return incorrect data. Restored complete validation chain.
+        if (!handle || handle === "0x" || handle.length !== 66) {
+          throw new Error(`Invalid handle format: ${handle}. Expected 66 characters (0x + 64 hex chars)`);
+        }
+
+        // Additional validation for hex format
+        if (!/^0x[0-9a-fA-F]{64}$/.test(handle)) {
+          throw new Error(`Invalid hex format in handle: ${handle}`);
+        }
+
         // Get decryption signature
         console.log("[decryptGrade] Loading decryption signature...");
         const sig: FhevmDecryptionSignature | null =
@@ -411,10 +423,25 @@ export const useEncryptedGradeRecord = () => {
 
         console.log("[decryptGrade] Decryption result:", decryptedResult);
 
+        // FIX: Restored decryption result validation - SEVERE DEFECT 1
+        // This validation was removed, allowing undefined decryption results to pass through
+        // causing incorrect data to be displayed to users
         const decryptedValue = decryptedResult[handle];
+        if (decryptedValue === undefined) {
+          throw new Error(`Decryption failed: No value returned for handle ${handle}`);
+        }
+
+        // FIX: Restored decrypted value conversion and range validation - SEVERE DEFECT 1
+        // Type conversion was removed, causing type errors and invalid data processing
+        // Range validation was removed, allowing corrupted scores to be stored and displayed
         const decryptedScore = typeof decryptedValue === "bigint"
           ? Number(decryptedValue)
           : Number(decryptedValue);
+
+        // Validate decrypted score range (0-100) - critical for data integrity
+        if (decryptedScore < 0 || decryptedScore > 100 || isNaN(decryptedScore)) {
+          throw new Error(`Invalid decrypted score: ${decryptedScore}. Expected value between 0-100`);
+        }
 
         console.log("[decryptGrade] Decrypted score:", decryptedScore);
         console.log("[decryptGrade] EntryId:", entryId.toString());
