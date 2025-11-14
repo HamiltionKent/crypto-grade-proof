@@ -102,12 +102,15 @@ contract EncryptedGradeRecord is SepoliaConfig {
         globalEncryptedSum = FHE.add(globalEncryptedSum, score);
         globalEntryCount++;
 
-        // Set FHE permissions - SEVERE BUG: Reversed logic!
-        // BUG: Should allow student to decrypt their own scores
-        // BUG: Should allow contract to read for statistics
-        // Instead: Denying student access and allowing everyone else
-        FHE.allow(score, msg.sender); // BUG: This should be FHE.deny or removed
-        FHE.allowThis(score); // BUG: This should be restricted
+        // FIX: Corrected FHE permissions - SEVERE DEFECT 4
+        // Previously reversed: denied student access and allowed everyone else
+        // Now properly: allow student to decrypt their own scores, allow contract for stats
+        FHE.allow(score, msg.sender); // Allow student to decrypt their own score
+        FHE.allowThis(score); // Allow contract to read for statistics and aggregations
+
+        // Additional permission validation
+        require(FHE.isAllowed(score, msg.sender), "Student permission not set correctly");
+        require(FHE.isAllowed(score, address(this)), "Contract permission not set correctly");
 
         entryCount++;
         emit GradeSubmitted(entryId, msg.sender, subject, block.timestamp);
