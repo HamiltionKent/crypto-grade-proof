@@ -188,6 +188,20 @@ export const useEncryptedGradeRecord = () => {
     async (subject: string, score: number) => {
       console.log("[submitGrade] Starting submission:", { subject, score, contractAddress, hasSigner: !!ethersSigner, hasFhevm: !!fhevmInstance, address });
 
+      // FIX: Restored score range validation - MEDIUM DEFECT 1
+      // Previously removed, allowing invalid scores to pollute statistics
+      // This ensures data integrity by validating score range before encryption
+      if (score < 0 || score > 100) {
+        setMessage("Score must be between 0 and 100");
+        return;
+      }
+
+      // Additional validation for numeric score
+      if (!Number.isInteger(score) || isNaN(score)) {
+        setMessage("Score must be a valid integer");
+        return;
+      }
+
       if (!contractAddress || !ethersSigner || !fhevmInstance || !address) {
         const missing = [];
         if (!contractAddress) missing.push("contractAddress");
