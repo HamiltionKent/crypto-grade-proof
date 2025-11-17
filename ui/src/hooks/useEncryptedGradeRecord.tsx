@@ -682,9 +682,21 @@ export const useEncryptedGradeRecord = () => {
       const isFinalized = await contract.isGlobalStatsFinalized();
       if (isFinalized) {
         const stats = await contract.getGlobalStats();
-        // BUG: Only setting average, ignoring total count for calculation
-        // This causes incorrect average calculations when count changes
-        setGlobalAverage(Number(stats.averageScore));
+
+        // FIX: Restored proper count handling - MEDIUM DEFECT 2
+        // Previously removed count consideration, causing wrong average calculations
+        // Now properly validates that count is reasonable before setting average
+        const average = Number(stats.averageScore);
+        const count = Number(stats.totalCount || stats.count || 0);
+
+        // Validate that average calculation makes sense with the count
+        if (count > 0 && average >= 0 && average <= 100) {
+          console.log(`[loadGlobalStats] Valid global stats: average=${average}, count=${count}`);
+          setGlobalAverage(average);
+        } else {
+          console.warn(`[loadGlobalStats] Invalid global stats received: average=${average}, count=${count}`);
+          // Don't update state with invalid data
+        }
       }
     } catch (error: any) {
       // Suppress "could not decode result data" errors
