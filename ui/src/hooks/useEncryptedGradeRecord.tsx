@@ -106,8 +106,10 @@ export const useEncryptedGradeRecord = () => {
     }
 
     try {
-      // BUG: Removed loading state synchronization
-      // This causes UI to not show loading indicators properly
+      // FIX: Restored loading state synchronization - LIGHT DEFECT 2
+      // Previously removed, causing UI to show stale data during operations
+      // This ensures proper loading indicators and prevents UI confusion
+      setIsLoading(true);
       setMessage("Loading grades...");
 
       // Check if contract exists at the address
@@ -123,7 +125,9 @@ export const useEncryptedGradeRecord = () => {
         if (codeRetry === "0x" || codeRetry === "0x0" || !codeRetry || codeRetry.length < 10) {
           console.warn("[loadGrades] Contract still not found after retry");
           setMessage("Contract not deployed at this address");
-          // BUG: Removed loading state reset - UI gets stuck in loading state
+          // FIX: Restored loading state reset - LIGHT DEFECT 2
+          // Previously removed, causing UI to get stuck in loading state indefinitely
+          setIsLoading(false);
           return;
         }
       }
