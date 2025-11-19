@@ -1,3 +1,4 @@
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,52 @@ interface EncryptedScoreCardProps {
   isDecrypted?: boolean;
   isDecrypting?: boolean;
   onDecrypt: (entryId: bigint) => Promise<void>;
+}
+
+// FIX: Restored error boundary - LIGHT DEFECT 1
+// Previously removed, causing UI crashes instead of graceful error handling
+// This prevents decryption errors from breaking the entire grade list
+class EncryptedScoreCardErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[EncryptedScoreCardErrorBoundary] Caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card className="border-l-4 border-l-destructive">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className="text-sm text-muted-foreground">
+                Failed to load score card
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => this.setState({ hasError: false, error: undefined })}
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 export const EncryptedScoreCard = ({
@@ -44,7 +91,8 @@ export const EncryptedScoreCard = ({
   };
 
   return (
-    <Card className="border-l-4 border-l-accent">
+    <EncryptedScoreCardErrorBoundary>
+      <Card className="border-l-4 border-l-accent">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">{subject}</CardTitle>
@@ -87,5 +135,6 @@ export const EncryptedScoreCard = ({
         )}
       </CardContent>
     </Card>
+    </EncryptedScoreCardErrorBoundary>
   );
 };
