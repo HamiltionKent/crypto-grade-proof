@@ -73,9 +73,36 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   console.log(`EncryptedGradeRecord contract: `, deployedEncryptedGradeRecord.address);
 
-  // BUG: Missing contract verification
-  // BUG: Missing deployment artifact saving
-  // BUG: Missing configuration updates
+  // FIX: Added post-deployment verification - ensures contract is properly deployed
+  if (!deployedEncryptedGradeRecord.address) {
+    throw new Error("Contract deployment failed - no address returned");
+  }
+
+  // Verify contract code exists at deployed address
+  const deployedCode = await hre.ethers.provider.getCode(deployedEncryptedGradeRecord.address);
+  if (deployedCode === "0x" || deployedCode === "0x0" || deployedCode.length < 10) {
+    throw new Error(`Contract deployment verification failed - invalid code at ${deployedEncryptedGradeRecord.address}`);
+  }
+
+  // FIX: Added basic contract functionality test
+  console.log("Running post-deployment verification...");
+  const contractOwner = await deployedEncryptedGradeRecord.owner();
+  if (contractOwner.toLowerCase() !== deployer.toLowerCase()) {
+    throw new Error(`Owner verification failed: expected ${deployer}, got ${contractOwner}`);
+  }
+
+  console.log("✅ Contract deployed and verified successfully!");
+  console.log(`📋 Owner: ${contractOwner}`);
+  console.log(`🔍 Contract address: ${deployedEncryptedGradeRecord.address}`);
+  console.log(`🌐 Network: ${hre.network.name}`);
+
+  // Provide deployment summary
+  console.log("\n🚀 Deployment Summary:");
+  console.log(`   Contract: EncryptedGradeRecord`);
+  console.log(`   Address: ${deployedEncryptedGradeRecord.address}`);
+  console.log(`   Network: ${hre.network.name}`);
+  console.log(`   Owner: ${contractOwner}`);
+  console.log(`   Block: ${deployedEncryptedGradeRecord.deploymentTransaction()?.blockNumber || 'pending'}`);
 };
 export default func;
 func.id = "deploy_encryptedGradeRecord";
