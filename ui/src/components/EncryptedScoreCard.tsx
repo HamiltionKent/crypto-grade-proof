@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +61,7 @@ class EncryptedScoreCardErrorBoundary extends React.Component<
   }
 }
 
-export const EncryptedScoreCard = ({
+export const EncryptedScoreCard = memo(({
   entryId,
   subject,
   encryptedScore,
@@ -137,4 +137,6 @@ export const EncryptedScoreCard = ({
     </Card>
     </EncryptedScoreCardErrorBoundary>
   );
-};
+});
+
+EncryptedScoreCard.displayName = "EncryptedScoreCard";
