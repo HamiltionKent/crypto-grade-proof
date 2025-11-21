@@ -369,6 +369,17 @@ crypto-grade-proof/
 
 This project is licensed under the BSD-3-Clause-Clear License. See the [LICENSE](LICENSE) file for details.
 
+### License Highlights
+- ✅ Commercial use allowed
+- ✅ Modification allowed
+- ✅ Distribution allowed
+- ✅ Private use allowed
+- ⚠️ License and copyright notice must be included
+- ⚠️ No liability for damages
+- ⚠️ No warranty provided
+
+For full license terms, please refer to the [LICENSE](LICENSE) file.
+
 ## 🆘 Support
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/HamiltionKent/crypto-grade-proof/issues)
