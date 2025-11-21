@@ -1,0 +1,28 @@
+{
+  "network": {
+    "name": "sepolia",
+    "rpcUrl": "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
+    "chainId": 11155111
+  },
+  "contract": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "deploymentBlock": 0
+  },
+  "fhevm": {
+    "publicKey": "YOUR_FHEVM_PUBLIC_KEY",
+    "privateKey": "YOUR_FHEVM_PRIVATE_KEY"
+  },
+  "security": {
+    "allowedOrigins": [
+      "http://localhost:3000",
+      "https://yourdomain.com"
+    ],
+    "maxRetries": 3,
+    "timeoutMs": 30000
+  },
+  "ui": {
+    "theme": "light",
+    "language": "en",
+    "itemsPerPage": 20
+  }
+}
