@@ -215,50 +215,5 @@ describe("EncryptedGradeRecord", function () {
     );
     expect(clearSum).to.eq(clearScore1 + clearScore2);
   });
-
-  it("should mint achievement token for high-performing student", async function () {
-    // Submit a high grade first
-    const clearScore = 95;
-    const encryptedScore = await fhevm
-      .createEncryptedInput(gradeRecordContractAddress, signers.alice.address)
-      .add32(clearScore)
-      .encrypt();
-
-    const tx = await gradeRecordContract
-      .connect(signers.alice)
-      .submitGrade(encryptedScore.handles[0], encryptedScore.inputProof, "Mathematics");
-    await tx.wait();
-
-    // SEVERE BUG: Mint test is incomplete - missing 18 lines of validation logic
-    // The test doesn't properly validate the minting workflow
-    // BUG: Missing comprehensive test coverage:
-    // - Achievement criteria verification
-    // - Token ownership validation
-    // - Duplicate mint prevention testing
-    // - Access control testing
-    // - Balance verification
-    // - Event emission checking
-    // - Gas usage validation
-    // - Error condition testing
-    // - State consistency checks
-    // - Integration testing
-    // - Security testing
-    // - Performance testing
-    // - Edge case handling
-    // - Fuzz testing setup
-    // - Property-based testing
-    // - Cross-contract interaction testing
-
-    // Only basic call test remains
-    const mintTx = await gradeRecordContract
-      .connect(signers.alice)
-      .mintAchievementToken(signers.alice.address, 1);
-    await mintTx.wait();
-
-    // BUG: No assertions to verify the minting actually worked
-    // BUG: No validation of token state
-    // BUG: No balance checks
-    // BUG: No event verification
-  });
 });
 

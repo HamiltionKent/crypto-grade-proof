@@ -1,9 +1,9 @@
-import React, { memo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Eye, Loader2 } from "lucide-react";
+import { Lock, Eye, Loader2, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
+import { useState, useEffect } from "react";
 
 interface EncryptedScoreCardProps {
   entryId: bigint;
@@ -15,61 +15,36 @@ interface EncryptedScoreCardProps {
   onDecrypt: (entryId: bigint) => Promise<void>;
 }
 
-// FIX: Restored error boundary - LIGHT DEFECT 1
-// Previously removed, causing UI crashes instead of graceful error handling
-// This prevents decryption errors from breaking the entire grade list
-class EncryptedScoreCardErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error?: Error }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[EncryptedScoreCardErrorBoundary] Caught error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <Card className="border-l-4 border-l-destructive">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="text-sm text-muted-foreground">
-                Failed to load score card
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => this.setState({ hasError: false, error: undefined })}
-              >
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-export const EncryptedScoreCard = memo(({
-  entryId,
-  subject,
-  encryptedScore,
-  progress,
+export const EncryptedScoreCard = ({ 
+  entryId, 
+  subject, 
+  encryptedScore, 
+  progress, 
   isDecrypted = false,
   isDecrypting = false,
   onDecrypt
 }: EncryptedScoreCardProps) => {
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [showSparkle, setShowSparkle] = useState(false);
+
+  // Animate progress when decrypted
+  useEffect(() => {
+    if (isDecrypted) {
+      setShowSparkle(true);
+      const timer = setTimeout(() => {
+        setAnimatedProgress(progress);
+      }, 100);
+      const sparkleTimer = setTimeout(() => {
+        setShowSparkle(false);
+      }, 1500);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(sparkleTimer);
+      };
+    } else {
+      setAnimatedProgress(0);
+    }
+  }, [isDecrypted, progress]);
 
   // Debug: Log props changes
   console.log("[EncryptedScoreCard] Render:", JSON.stringify({
@@ -90,53 +65,103 @@ export const EncryptedScoreCard = memo(({
     }
   };
 
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return "text-green-500";
+    if (score >= 70) return "text-achievement";
+    if (score >= 60) return "text-orange-500";
+    return "text-red-500";
+  };
+
   return (
-    <EncryptedScoreCardErrorBoundary>
-      <Card className="border-l-4 border-l-accent">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">{subject}</CardTitle>
-          <Badge variant={isDecrypted ? "verified" : "locked"}>
-            {isDecrypted ? <Eye className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-            {isDecrypted ? "Decrypted" : "Encrypted"}
+    <Card 
+      className={`
+        border-l-4 decrypt-transition card-hover gradient-border relative overflow-hidden
+        ${isDecrypted ? 'border-l-achievement' : 'border-l-accent'}
+        ${isDecrypting ? 'animate-pulse-glow' : ''}
+      `}
+    >
+      {/* Shimmer effect during decryption */}
+      {isDecrypting && (
+        <div className="absolute inset-0 shimmer-bg animate-shimmer opacity-50" />
+      )}
+      
+      {/* Sparkle effect on decrypt */}
+      {showSparkle && (
+        <div className="absolute top-2 right-2 animate-bounce-subtle">
+          <Sparkles className="h-5 w-5 text-achievement animate-pulse" />
+        </div>
+      )}
+
+      <CardHeader className="relative z-10">
+        <div className="flex items-center justify-between">
+          <CardTitle className={`text-lg transition-all duration-300 ${isDecrypted ? 'text-foreground' : ''}`}>
+            {subject}
+          </CardTitle>
+          <Badge 
+            variant={isDecrypted ? "verified" : "locked"}
+            className={`transition-all duration-500 ${isDecrypted ? 'animate-scale-in' : ''}`}
+          >
+            <span className="flex items-center">
+              {isDecrypted ? (
+                <Eye className="h-3 w-3 mr-1" />
+              ) : (
+                <Lock className={`h-3 w-3 mr-1 ${isDecrypting ? 'animate-spin' : ''}`} />
+              )}
+              <span>{isDecrypted ? "Decrypted" : isDecrypting ? "Decrypting..." : "Encrypted"}</span>
+            </span>
           </Badge>
         </div>
-        <CardDescription className="font-mono text-xs break-all">
-          {isDecrypted ? `Score: ${progress}/100` : `${encryptedScore.substring(0, 20)}...`}
+        <CardDescription className="font-mono text-xs break-all transition-all duration-300">
+          <span className={isDecrypted ? getScoreColor(progress) : ''}>
+            {isDecrypted ? `Score: ${progress}/100` : `${encryptedScore.substring(0, 20)}...`}
+          </span>
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 relative z-10">
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span className="text-muted-foreground">Score</span>
-            <span className="font-semibold text-foreground">
+            <span className={`font-semibold transition-all duration-500 ${isDecrypted ? getScoreColor(progress) : 'text-foreground'}`}>
               {isDecrypted ? `${progress}/100` : "Encrypted"}
             </span>
           </div>
-          <Progress value={isDecrypted ? progress : 0} className="h-2" />
+          <div className="relative">
+            <Progress 
+              value={animatedProgress} 
+              className="h-2 progress-animated" 
+            />
+            {isDecrypted && animatedProgress >= 90 && (
+              <div className="absolute -right-1 -top-1">
+                <span className="text-xs">🏆</span>
+              </div>
+            )}
+          </div>
         </div>
         {!isDecrypted && (
           <Button 
             variant="ghost" 
             size="sm" 
-            className="w-full text-xs"
+            className="w-full text-xs group hover:bg-accent/10 transition-all duration-300"
             onClick={handleDecrypt}
             disabled={isDecrypting}
           >
             {isDecrypting ? (
-              <>
+              <span className="flex items-center">
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Decrypting...
-              </>
+                <span className="animate-pulse">Decrypting...</span>
+              </span>
             ) : (
-              "Decrypt Score"
+              <span className="flex items-center">
+                <span className="relative w-3 h-3 mr-1">
+                  <Lock className="h-3 w-3 absolute inset-0 opacity-100 group-hover:opacity-0 transition-opacity duration-200" />
+                  <Eye className="h-3 w-3 absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                </span>
+                <span>Decrypt Score</span>
+              </span>
             )}
           </Button>
         )}
       </CardContent>
     </Card>
-    </EncryptedScoreCardErrorBoundary>
   );
-});
-
-EncryptedScoreCard.displayName = "EncryptedScoreCard";
+};

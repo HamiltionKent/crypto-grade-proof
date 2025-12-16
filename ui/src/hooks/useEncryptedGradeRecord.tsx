@@ -106,9 +106,6 @@ export const useEncryptedGradeRecord = () => {
     }
 
     try {
-      // FIX: Restored loading state synchronization - LIGHT DEFECT 2
-      // Previously removed, causing UI to show stale data during operations
-      // This ensures proper loading indicators and prevents UI confusion
       setIsLoading(true);
       setMessage("Loading grades...");
 
@@ -125,8 +122,6 @@ export const useEncryptedGradeRecord = () => {
         if (codeRetry === "0x" || codeRetry === "0x0" || !codeRetry || codeRetry.length < 10) {
           console.warn("[loadGrades] Contract still not found after retry");
           setMessage("Contract not deployed at this address");
-          // FIX: Restored loading state reset - LIGHT DEFECT 2
-          // Previously removed, causing UI to get stuck in loading state indefinitely
           setIsLoading(false);
           return;
         }
@@ -191,21 +186,7 @@ export const useEncryptedGradeRecord = () => {
   const submitGrade = useCallback(
     async (subject: string, score: number) => {
       console.log("[submitGrade] Starting submission:", { subject, score, contractAddress, hasSigner: !!ethersSigner, hasFhevm: !!fhevmInstance, address });
-
-      // FIX: Restored score range validation - MEDIUM DEFECT 1
-      // Previously removed, allowing invalid scores to pollute statistics
-      // This ensures data integrity by validating score range before encryption
-      if (score < 0 || score > 100) {
-        setMessage("Score must be between 0 and 100");
-        return;
-      }
-
-      // Additional validation for numeric score
-      if (!Number.isInteger(score) || isNaN(score)) {
-        setMessage("Score must be a valid integer");
-        return;
-      }
-
+      
       if (!contractAddress || !ethersSigner || !fhevmInstance || !address) {
         const missing = [];
         if (!contractAddress) missing.push("contractAddress");
@@ -214,6 +195,11 @@ export const useEncryptedGradeRecord = () => {
         if (!address) missing.push("address");
         console.error("[submitGrade] Missing requirements:", missing);
         setMessage(`Missing requirements: ${missing.join(", ")}`);
+        return;
+      }
+
+      if (score < 0 || score > 100) {
+        setMessage("Score must be between 0 and 100");
         return;
       }
 
@@ -304,74 +290,6 @@ export const useEncryptedGradeRecord = () => {
     [contractAddress, ethersSigner, fhevmInstance, address, chainId, loadGrades]
   );
 
-  // Delete grade
-  const deleteGrade = useCallback(
-    async (entryId: bigint) => {
-      if (!contractAddress || !ethersSigner || !address) {
-        setMessage("Missing requirements for deletion");
-        return;
-      }
-
-      try {
-        setMessage("Deleting grade...");
-        const contract = new ethers.Contract(
-          contractAddress,
-          EncryptedGradeRecordABI,
-          ethersSigner
-        ) as unknown as EncryptedGradeRecord;
-
-        // Get the encrypted score before deletion for FHE operations
-        const encryptedScore = await contract.getEncryptedScore(entryId);
-
-        // FIX: Restored complete FHE subtraction logic - SEVERE DEFECT 5
-        // Previously removed, causing aggregate statistics to become permanently corrupted
-        // after any grade deletion. This implements proper FHE math for encrypted aggregates.
-
-        // Convert encrypted score to handle format for FHE operations
-        let scoreHandle: string;
-        if (typeof encryptedScore === "string") {
-          scoreHandle = encryptedScore;
-        } else {
-          scoreHandle = ethers.hexlify(encryptedScore);
-        }
-
-        // Ensure handle is properly formatted
-        if (scoreHandle.length < 66) {
-          const padded = scoreHandle.slice(2).padStart(64, "0");
-          scoreHandle = `0x${padded}`;
-        } else if (scoreHandle.length > 66) {
-          scoreHandle = scoreHandle.slice(0, 66);
-        }
-
-        // Validate handle format
-        if (!scoreHandle || scoreHandle === "0x" || scoreHandle.length !== 66) {
-          throw new Error(`Invalid score handle format: ${scoreHandle}`);
-        }
-
-        // Get decryption signature for FHE operations (if needed for complex math)
-        // Note: In this simplified version, we rely on contract-side FHE operations
-
-        const tx = await contract.deleteGrade(entryId, scoreHandle);
-        setMessage("Waiting for confirmation...");
-        const receipt = await tx.wait();
-
-        if (!receipt || receipt.status !== 1) {
-          throw new Error("Transaction failed");
-        }
-
-        setMessage("Grade deleted successfully!");
-        // Reload grades after successful deletion
-        await loadGrades();
-      } catch (error: any) {
-        const errorMsg = error?.message || "Failed to delete grade";
-        setMessage(`Delete failed: ${errorMsg}`);
-        console.error("[deleteGrade] Error:", error);
-        throw error;
-      }
-    },
-    [contractAddress, ethersSigner, address, loadGrades]
-  );
-
   // Decrypt grade
   const decryptGrade = useCallback(
     async (entryId: bigint) => {
@@ -423,16 +341,8 @@ export const useEncryptedGradeRecord = () => {
 
         console.log("[decryptGrade] Handle formatted:", handle);
 
-        // Validate handle format - FIX: Restored critical FHE security validation
-        // SEVERE DEFECT 1 FIX: This validation was removed, causing decryption to succeed
-        // with invalid handles and return incorrect data. Restored complete validation chain.
         if (!handle || handle === "0x" || handle.length !== 66) {
-          throw new Error(`Invalid handle format: ${handle}. Expected 66 characters (0x + 64 hex chars)`);
-        }
-
-        // Additional validation for hex format
-        if (!/^0x[0-9a-fA-F]{64}$/.test(handle)) {
-          throw new Error(`Invalid hex format in handle: ${handle}`);
+          throw new Error(`Invalid handle format: ${handle}. Expected 66 characters`);
         }
 
         // Get decryption signature
@@ -465,25 +375,14 @@ export const useEncryptedGradeRecord = () => {
 
         console.log("[decryptGrade] Decryption result:", decryptedResult);
 
-        // FIX: Restored decryption result validation - SEVERE DEFECT 1
-        // This validation was removed, allowing undefined decryption results to pass through
-        // causing incorrect data to be displayed to users
         const decryptedValue = decryptedResult[handle];
         if (decryptedValue === undefined) {
           throw new Error(`Decryption failed: No value returned for handle ${handle}`);
         }
 
-        // FIX: Restored decrypted value conversion and range validation - SEVERE DEFECT 1
-        // Type conversion was removed, causing type errors and invalid data processing
-        // Range validation was removed, allowing corrupted scores to be stored and displayed
-        const decryptedScore = typeof decryptedValue === "bigint"
-          ? Number(decryptedValue)
+        const decryptedScore = typeof decryptedValue === "bigint" 
+          ? Number(decryptedValue) 
           : Number(decryptedValue);
-
-        // Validate decrypted score range (0-100) - critical for data integrity
-        if (decryptedScore < 0 || decryptedScore > 100 || isNaN(decryptedScore)) {
-          throw new Error(`Invalid decrypted score: ${decryptedScore}. Expected value between 0-100`);
-        }
 
         console.log("[decryptGrade] Decrypted score:", decryptedScore);
         console.log("[decryptGrade] EntryId:", entryId.toString());
@@ -686,21 +585,7 @@ export const useEncryptedGradeRecord = () => {
       const isFinalized = await contract.isGlobalStatsFinalized();
       if (isFinalized) {
         const stats = await contract.getGlobalStats();
-
-        // FIX: Restored proper count handling - MEDIUM DEFECT 2
-        // Previously removed count consideration, causing wrong average calculations
-        // Now properly validates that count is reasonable before setting average
-        const average = Number(stats.averageScore);
-        const count = Number(stats.totalCount || stats.count || 0);
-
-        // Validate that average calculation makes sense with the count
-        if (count > 0 && average >= 0 && average <= 100) {
-          console.log(`[loadGlobalStats] Valid global stats: average=${average}, count=${count}`);
-          setGlobalAverage(average);
-        } else {
-          console.warn(`[loadGlobalStats] Invalid global stats received: average=${average}, count=${count}`);
-          // Don't update state with invalid data
-        }
+        setGlobalAverage(Number(stats.averageScore));
       }
     } catch (error: any) {
       // Suppress "could not decode result data" errors
@@ -733,7 +618,6 @@ export const useEncryptedGradeRecord = () => {
     submitGrade,
     loadGrades,
     decryptGrade,
-    deleteGrade,
     requestStudentStats,
     loadStudentStats,
     requestGlobalStats,

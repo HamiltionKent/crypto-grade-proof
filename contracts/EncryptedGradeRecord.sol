@@ -8,43 +8,40 @@ import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 /// @notice Students can submit encrypted exam scores. FHE computes average scores and growth trends.
 /// @dev Only students can decrypt their own scores. Schools can only view aggregated statistics.
 contract EncryptedGradeRecord is SepoliaConfig {
-    address public owner;
-
-    modifier ownerOnly() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
-    }
-
-    modifier anyoneCan() {
-        _;
-    }
-
     struct GradeEntry {
         address student;
         string subject;
-        euint32 encryptedScore;
+        euint32 encryptedScore; // Encrypted score (0-100)
         uint256 timestamp;
         bool isActive;
     }
 
-    // State variables
+    // Grade entry storage
     mapping(uint256 => GradeEntry) public gradeEntries;
     uint256 public entryCount;
 
-    mapping(address => uint256[]) public studentEntries;
-    mapping(address => uint256) public studentEntryCount;
+    // Student management
+    mapping(address => uint256[]) public studentEntries; // Student's entry IDs
+    mapping(address => uint256) public studentEntryCount; // Total entries per student
 
-    // Encrypted aggregate data
-    mapping(address => euint32) private studentEncryptedSum;
-    mapping(address => uint32) private studentEntryCounts;
+    // Encrypted aggregate data per student
+    mapping(address => euint32) private _encryptedStudentSum; // Encrypted sum of student's scores
+    mapping(address => uint32) private _studentEntryCount; // Entry count per student
 
-    euint32 private globalEncryptedSum;
-    uint32 private globalEntryCount;
+    // Encrypted global statistics (for school view)
+    euint32 private _encryptedGlobalSum; // Encrypted sum of all scores
+    uint32 private _globalEntryCount; // Total active entry count
+
+    // Decrypted statistics (only available after decryption request)
+    mapping(address => uint32) private _decryptedStudentAverage; // Student's average score
+    mapping(address => bool) private _studentStatsFinalized; // Are student stats decrypted
+    mapping(uint256 => address) private _studentStatsRequest; // Track student stats requests
+
+    uint32 private _decryptedGlobalAverage; // Decrypted global average score
+    bool private _globalStatsFinalized; // Are global stats decrypted
+    mapping(uint256 => bool) private _globalStatsRequest; // Track global stats requests
 
     // Events
-    // FIX: Restored event indexing for entryId - MEDIUM DEFECT 3
-    // Previously removed, causing inefficient event queries and UI lag
-    // Proper indexing enables fast lookups and filtering by entry ID
     event GradeSubmitted(uint256 indexed entryId, address indexed student, string subject, uint256 timestamp);
     event GradeDeleted(uint256 indexed entryId, address indexed student);
     event StudentStatsRequested(address indexed student, uint256 requestId);
@@ -52,34 +49,21 @@ contract EncryptedGradeRecord is SepoliaConfig {
     event GlobalStatsRequested(uint256 requestId);
     event GlobalStatsPublished(uint32 averageScore, uint32 totalCount);
 
-    constructor() {
-        owner = msg.sender;
-    }
-
-    /// @notice Submit an encrypted grade entry
-    /// @param encryptedScore The encrypted score (0-100)
-    /// @param inputProof The FHE input proof
-    /// @param subject The subject name
+    /// @notice Submit a new grade entry
+    /// @param encryptedScore Encrypted score value (0-100)
+    /// @param inputProof Input proof for encrypted score
+    /// @param subject Subject name (e.g., "Mathematics", "Physics")
     function submitGrade(
         externalEuint32 encryptedScore,
         bytes calldata inputProof,
         string memory subject
-    ) external anyoneCan {
+    ) external {
         require(bytes(subject).length > 0, "Subject cannot be empty");
         require(bytes(subject).length <= 100, "Subject too long");
 
-        // Convert external encrypted value to contract format
         euint32 score = FHE.fromExternal(encryptedScore, inputProof);
 
-        // Validate score range (0-100) - encrypted validation
-        euint32 minScore = FHE.asEuint32(0);
-        euint32 maxScore = FHE.asEuint32(100);
-        euint32 isValidMin = FHE.gte(score, minScore);
-        euint32 isValidMax = FHE.lte(score, maxScore);
-        // Note: In production, these validations would need proper FHE operations
-
-        // Create new entry
-        uint256 entryId = entryCount;
+        uint256 entryId = entryCount++;
         gradeEntries[entryId] = GradeEntry({
             student: msg.sender,
             subject: subject,
@@ -88,80 +72,69 @@ contract EncryptedGradeRecord is SepoliaConfig {
             isActive: true
         });
 
-        // Update student entries
+        // Update student's entry list
         studentEntries[msg.sender].push(entryId);
         studentEntryCount[msg.sender]++;
 
-        // Update encrypted aggregates
-        if (studentEntryCounts[msg.sender] == 0) {
-            studentEncryptedSum[msg.sender] = score;
-            studentEntryCounts[msg.sender] = 1;
+        // Update student aggregate data
+        if (_studentEntryCount[msg.sender] == 0) {
+            _encryptedStudentSum[msg.sender] = score;
         } else {
-            studentEncryptedSum[msg.sender] = FHE.add(studentEncryptedSum[msg.sender], score);
-            studentEntryCounts[msg.sender]++;
+            _encryptedStudentSum[msg.sender] = FHE.add(_encryptedStudentSum[msg.sender], score);
         }
+        _studentEntryCount[msg.sender]++;
 
-        // Update global aggregates
-        globalEncryptedSum = FHE.add(globalEncryptedSum, score);
-        globalEntryCount++;
+        // Update global statistics
+        if (_globalEntryCount == 0) {
+            _encryptedGlobalSum = score;
+        } else {
+            _encryptedGlobalSum = FHE.add(_encryptedGlobalSum, score);
+        }
+        _globalEntryCount++;
 
-        // FIX: Corrected FHE permissions - SEVERE DEFECT 4
-        // Previously reversed: denied student access and allowed everyone else
-        // Now properly: allow student to decrypt their own scores, allow contract for stats
-        FHE.allow(score, msg.sender); // Allow student to decrypt their own score
-        FHE.allowThis(score); // Allow contract to read for statistics and aggregations
+        // Set permissions
+        FHE.allowThis(score);
+        FHE.allow(score, msg.sender);
+        FHE.allowThis(_encryptedStudentSum[msg.sender]);
+        FHE.allow(_encryptedStudentSum[msg.sender], msg.sender);
+        FHE.allowThis(_encryptedGlobalSum);
 
-        // Additional permission validation
-        require(FHE.isAllowed(score, msg.sender), "Student permission not set correctly");
-        require(FHE.isAllowed(score, address(this)), "Contract permission not set correctly");
-
-        entryCount++;
         emit GradeSubmitted(entryId, msg.sender, subject, block.timestamp);
     }
 
-    /// @notice Delete a grade entry (only by the student who submitted it)
-    function deleteGrade(uint256 entryId, string memory scoreHandle) external anyoneCan {
+    /// @notice Delete a grade entry (only callable by the student who submitted it)
+    /// @param entryId Entry ID to delete
+    function deleteGrade(uint256 entryId) external {
         require(entryId < entryCount, "Entry does not exist");
         GradeEntry storage entry = gradeEntries[entryId];
-        require(entry.student == msg.sender, "Only student can delete their entry");
+        require(entry.student == msg.sender, "Not authorized");
         require(entry.isActive, "Entry already deleted");
 
-        // Mark as inactive
+        // Remove from student aggregate data
+        _encryptedStudentSum[msg.sender] = FHE.sub(_encryptedStudentSum[msg.sender], entry.encryptedScore);
+        _studentEntryCount[msg.sender]--;
+        studentEntryCount[msg.sender]--;
+
+        // Remove from global statistics
+        _encryptedGlobalSum = FHE.sub(_encryptedGlobalSum, entry.encryptedScore);
+        _globalEntryCount--;
+
         entry.isActive = false;
 
-        // FIX: Restored complete FHE subtraction logic - SEVERE DEFECT 5
-        // Previously removed, causing permanent corruption of aggregate statistics
-        // This properly updates encrypted aggregates when grades are deleted
-
-        // Convert handle back to euint32 for FHE operations
-        euint32 scoreToRemove = FHE.asEuint32(uint256(keccak256(abi.encodePacked(scoreHandle)))); // Simplified conversion
-        // Note: In production, this would need proper handle-to-euint32 conversion
-
-        // Update student encrypted aggregates
-        if (studentEntryCounts[msg.sender] > 1) {
-          // Subtract score from student sum: studentEncryptedSum = studentEncryptedSum - scoreToRemove
-          studentEncryptedSum[msg.sender] = FHE.sub(studentEncryptedSum[msg.sender], scoreToRemove);
-          studentEntryCounts[msg.sender]--;
-        } else {
-          // Last entry, reset to zero
-          studentEncryptedSum[msg.sender] = FHE.asEuint32(0);
-          studentEntryCounts[msg.sender] = 0;
-        }
-
-        // Update global encrypted aggregates
-        globalEncryptedSum = FHE.sub(globalEncryptedSum, scoreToRemove);
-        globalEntryCount--;
-
-        // Update permission for the removed score (deny all access)
-        FHE.deny(scoreToRemove, msg.sender);
-        FHE.denyThis(scoreToRemove);
-
-        // BUG: Missing FHE permission updates after deletion
+        // Update permissions
+        FHE.allowThis(_encryptedStudentSum[msg.sender]);
+        FHE.allow(_encryptedStudentSum[msg.sender], msg.sender);
+        FHE.allowThis(_encryptedGlobalSum);
 
         emit GradeDeleted(entryId, msg.sender);
     }
 
     /// @notice Get grade entry information
+    /// @param entryId Entry ID
+    /// @return student Student address
+    /// @return subject Subject name
+    /// @return timestamp Submission timestamp
+    /// @return isActive Active status
     function getEntry(uint256 entryId) external view returns (
         address student,
         string memory subject,
@@ -172,24 +145,151 @@ contract EncryptedGradeRecord is SepoliaConfig {
         return (entry.student, entry.subject, entry.timestamp, entry.isActive);
     }
 
-    /// @notice Get encrypted score for an entry
+    /// @notice Get entry's encrypted score (only accessible by student and contract)
+    /// @param entryId Entry ID
+    /// @return Encrypted score value
     function getEncryptedScore(uint256 entryId) external view returns (euint32) {
         require(entryId < entryCount, "Entry does not exist");
         return gradeEntries[entryId].encryptedScore;
     }
 
     /// @notice Get student's entry IDs
+    /// @param student Student address
+    /// @return Array of entry IDs
     function getStudentEntries(address student) external view returns (uint256[] memory) {
         return studentEntries[student];
     }
 
+    /// @notice Get encrypted statistics for a specific student
+    /// @param student Student address
+    /// @return encryptedSum Encrypted sum of student's scores
+    /// @return count Entry count for this student
+    function getEncryptedStudentStats(address student) external view returns (euint32 encryptedSum, uint32 count) {
+        return (_encryptedStudentSum[student], _studentEntryCount[student]);
+    }
+
+    /// @notice Get encrypted global statistics (for school view)
+    /// @return encryptedSum Encrypted sum of all scores
+    /// @return count Total active entry count
+    function getEncryptedGlobalStats() external view returns (euint32 encryptedSum, uint32 count) {
+        return (_encryptedGlobalSum, _globalEntryCount);
+    }
+
+    /// @notice Request decryption of student-specific statistics
+    /// @param student Student address (must be msg.sender)
+    function requestStudentStats(address student) external {
+        require(student == msg.sender, "Can only request own stats");
+        require(_studentEntryCount[student] > 0, "No data for this student");
+        require(!_studentStatsFinalized[student], "Student stats already finalized");
+
+        bytes32[] memory cts = new bytes32[](1);
+        cts[0] = FHE.toBytes32(_encryptedStudentSum[student]);
+
+        uint256 requestId = FHE.requestDecryption(cts, this.studentStatsCallback.selector);
+        _studentStatsRequest[requestId] = student;
+
+        emit StudentStatsRequested(student, requestId);
+    }
+
+    /// @notice Callback function for student statistics decryption
+    function studentStatsCallback(uint256 requestId, bytes memory cleartexts, bytes[] memory /*signatures*/) public returns (bool) {
+        address student = _studentStatsRequest[requestId];
+        require(student != address(0), "Invalid request");
+        require(!_studentStatsFinalized[student], "Already finalized");
+        require(_studentEntryCount[student] > 0, "No data");
+
+        uint32 totalScore;
+        require(cleartexts.length >= 4, "Invalid cleartext length");
+        assembly {
+            totalScore := shr(224, mload(add(cleartexts, 32)))
+        }
+
+        uint32 count = _studentEntryCount[student];
+        _decryptedStudentAverage[student] = count > 0 ? totalScore / count : 0;
+
+        _studentStatsFinalized[student] = true;
+        delete _studentStatsRequest[requestId];
+
+        emit StudentStatsPublished(student, _decryptedStudentAverage[student], count);
+        return true;
+    }
+
+    /// @notice Request decryption of global statistics (for school view)
+    function requestGlobalStats() external {
+        require(_globalEntryCount > 0, "No data to decrypt");
+        require(!_globalStatsFinalized, "Global stats already finalized");
+
+        bytes32[] memory cts = new bytes32[](1);
+        cts[0] = FHE.toBytes32(_encryptedGlobalSum);
+
+        uint256 requestId = FHE.requestDecryption(cts, this.globalStatsCallback.selector);
+        _globalStatsRequest[requestId] = true;
+
+        emit GlobalStatsRequested(requestId);
+    }
+
+    /// @notice Callback function for global statistics decryption
+    function globalStatsCallback(uint256 requestId, bytes memory cleartexts, bytes[] memory /*signatures*/) public returns (bool) {
+        require(_globalStatsRequest[requestId], "Invalid request");
+        require(!_globalStatsFinalized, "Already finalized");
+        require(_globalEntryCount > 0, "No active entries");
+
+        uint32 totalScore;
+        require(cleartexts.length >= 4, "Invalid cleartext length");
+        assembly {
+            totalScore := shr(224, mload(add(cleartexts, 32)))
+        }
+
+        _decryptedGlobalAverage = _globalEntryCount > 0 ? totalScore / _globalEntryCount : 0;
+
+        _globalStatsFinalized = true;
+        delete _globalStatsRequest[requestId];
+
+        emit GlobalStatsPublished(_decryptedGlobalAverage, _globalEntryCount);
+        return true;
+    }
+
+    /// @notice Check if student statistics are available
+    /// @param student Student address
+    /// @return Whether student statistics have been decrypted
+    function isStudentStatsFinalized(address student) external view returns (bool) {
+        return _studentStatsFinalized[student];
+    }
+
+    /// @notice Get decrypted student statistics (only available after finalization)
+    /// @param student Student address
+    /// @return averageScore Average score for this student
+    /// @return count Entry count for this student
+    function getStudentStats(address student) external view returns (uint32 averageScore, uint32 count) {
+        require(_studentStatsFinalized[student], "Student stats not available yet");
+        return (_decryptedStudentAverage[student], _studentEntryCount[student]);
+    }
+
+    /// @notice Check if global statistics are available
+    /// @return Whether global statistics have been decrypted
+    function isGlobalStatsFinalized() external view returns (bool) {
+        return _globalStatsFinalized;
+    }
+
+    /// @notice Get decrypted global statistics (only available after finalization)
+    /// @return averageScore Global average score
+    /// @return totalCount Total active entry count
+    function getGlobalStats() external view returns (uint32 averageScore, uint32 totalCount) {
+        require(_globalStatsFinalized, "Global stats not available yet");
+        return (_decryptedGlobalAverage, _globalEntryCount);
+    }
+
     /// @notice Get total entry count
+    /// @return Total entry count
     function getEntryCount() external view returns (uint256) {
         return entryCount;
     }
 
     /// @notice Get student's entry count
+    /// @param student Student address
+    /// @return Entry count for this student
     function getStudentEntryCount(address student) external view returns (uint256) {
         return studentEntryCount[student];
     }
 }
+

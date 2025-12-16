@@ -2,37 +2,9 @@
 
 A privacy-preserving grade management system built on Ethereum using Fully Homomorphic Encryption (FHE). Students can submit encrypted exam scores, and only they can decrypt their own scores. Schools can view aggregated statistics without accessing individual student data.
 
-## 🔧 Bug Fixes Status
-
-### ✅ Phase 1: Bug Introduction (5 commits)
-Successfully introduced 9 bugs across the codebase for demonstration purposes.
-
-### ✅ Phase 2: Bug Fixes (9 commits)
-**All bugs have been successfully fixed:**
-
-- 🔴 **SEVERE DEFECTS (5)**: All access control, encryption, minting, and deployment issues resolved
-- 🟡 **MEDIUM DEFECTS (3)**: Input validation and gas optimization bugs fixed
-- 🟢 **LIGHT DEFECTS (2)**: Event indexing optimization completed
-
-**Total**: 9 comprehensive fixes applied across contracts, UI components, and deployment scripts.
-
-## 🔧 Bug Fixes Status
-
-### ✅ Phase 1: Bug Introduction (5 commits)
-Successfully introduced 7 bugs across the codebase for demonstration purposes.
-
-### ✅ Phase 2: Bug Fixes (19 commits)
-**All bugs have been successfully fixed:**
-
-- 🔴 **SEVERE DEFECTS (4)**: All access control, encryption, minting, and deployment issues resolved
-- 🟡 **MEDIUM DEFECTS (2)**: Input validation and gas optimization bugs fixed
-- 🟢 **LIGHT DEFECTS (1)**: Event indexing optimization completed
-
-**Total**: 19 comprehensive fixes applied across contracts, UI components, and deployment scripts.
-
 ## 🚀 Live Demo
 
-- **Live Demo**: [https://crypto-grade-proof-2.vercel.app/](https://crypto-grade-proof-2.vercel.app/)
+- **Live Demo**: [https://crypto-grade-proof.vercel.app/](https://crypto-grade-proof.vercel.app/)
 - **Demo Video**: [https://github.com/HamiltionKent/crypto-grade-proof/blob/main/crypto-grade-proof.mp4](https://github.com/HamiltionKent/crypto-grade-proof/blob/main/crypto-grade-proof.mp4)
 
 ## ✨ Features
@@ -368,17 +340,6 @@ crypto-grade-proof/
 ## 📄 License
 
 This project is licensed under the BSD-3-Clause-Clear License. See the [LICENSE](LICENSE) file for details.
-
-### License Highlights
-- ✅ Commercial use allowed
-- ✅ Modification allowed
-- ✅ Distribution allowed
-- ✅ Private use allowed
-- ⚠️ License and copyright notice must be included
-- ⚠️ No liability for damages
-- ⚠️ No warranty provided
-
-For full license terms, please refer to the [LICENSE](LICENSE) file.
 
 ## 🆘 Support
 
